@@ -165,6 +165,10 @@ public class TabBarHrTest
 			var pos1 = item1.TransformToVisual(tbDuring).TransformPoint(new Windows.Foundation.Point(0, 0));
 			Assert.AreEqual(pos0.X, pos1.X, 1, "Vertical items should have the same X position.");
 			Assert.IsTrue(pos1.Y > pos0.Y, "Second item should be below first when Vertical.");
+
+			// Validate ActualSize reflects vertical layout (height > single item height)
+			Assert.IsTrue(tbDuring.ActualHeight > item0.ActualHeight, "TabBar ActualHeight should exceed a single item's height when Vertical.");
+			Assert.IsTrue(item0.ActualWidth > 0, "Item should have non-zero width when rendered vertically.");
 		}
 
 		// After dispose, UI is restored to original Horizontal orientation
