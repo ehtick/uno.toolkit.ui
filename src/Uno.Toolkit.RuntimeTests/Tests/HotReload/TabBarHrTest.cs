@@ -9,6 +9,7 @@ using System.Threading.Tasks;
 using Uno.Toolkit.RuntimeTests.Tests.TestPages;
 using Uno.Toolkit.UI;
 using Uno.UI.RuntimeTests;
+using static Uno.Toolkit.UI.TabBarItemExtensions;
 
 namespace Uno.Toolkit.RuntimeTests.Tests.HotReload;
 
@@ -286,6 +287,99 @@ public class TabBarHrTest
 		Assert.AreEqual("Tab One", ((TabBarItem)tbAfter.Items[0]).Content as string, "First tab should be restored to Tab One.");
 		Assert.AreEqual("Tab Two", ((TabBarItem)tbAfter.Items[1]).Content as string, "Second tab should be restored to Tab Two.");
 		Assert.AreEqual("Tab Three", ((TabBarItem)tbAfter.Items[2]).Content as string, "Third tab should be restored to Tab Three.");
+	}
+
+	/// <summary>
+	/// Verifies that adding OnClickBehaviors to a TabBarItem via XAML Hot Reload
+	/// causes the attached property to be set correctly.
+	/// Uses TabBarPage5 — Tab2 starts without OnClickBehaviors.
+	/// </summary>
+	[TestMethod]
+	public async Task AddOnClickBehaviors_Via_Xaml_HotReload(CancellationToken ct)
+	{
+		await UIHelper.Load(new TabBarPage5(), ct);
+
+		var tb = UIHelper.GetChild<TabBar>(name: "TB");
+		var tab2 = (TabBarItem)tb.Items[1];
+		Assert.AreEqual(TBIOnClickBehaviors.None, GetOnClickBehaviors(tab2), "Tab2 should start without OnClickBehaviors.");
+
+		// Add OnClickBehaviors="ScrollToTop" to Tab2 via HR
+		await using (await HotReloadHelper.UpdateSourceFile<TabBarPage5>(
+			originalText: """<utu:TabBarItem Content="Tab Two" />""",
+			replacementText: """<utu:TabBarItem Content="Tab Two" utu:TabBarItemExtensions.OnClickBehaviors="ScrollToTop" />""",
+			ct))
+		{
+			var tbDuring = UIHelper.GetChild<TabBar>(name: "TB");
+			var tab2During = (TabBarItem)tbDuring.Items[1];
+			Assert.AreEqual(TBIOnClickBehaviors.ScrollToTop, GetOnClickBehaviors(tab2During), "Tab2 should have ScrollToTop after HR add.");
+		}
+
+		// After dispose, Tab2 should be restored without OnClickBehaviors
+		var tbAfter2 = UIHelper.GetChild<TabBar>(name: "TB");
+		var tab2After = (TabBarItem)tbAfter2.Items[1];
+		Assert.AreEqual(TBIOnClickBehaviors.None, GetOnClickBehaviors(tab2After), "Tab2 should be restored without OnClickBehaviors.");
+	}
+
+	/// <summary>
+	/// Verifies that removing OnClickBehaviors from a TabBarItem via XAML Hot Reload
+	/// causes the attached property to revert to its default value (None).
+	/// Uses TabBarPage5 — Tab1 starts with OnClickBehaviors="ScrollToTop".
+	/// </summary>
+	[TestMethod]
+	public async Task RemoveOnClickBehaviors_Via_Xaml_HotReload(CancellationToken ct)
+	{
+		await UIHelper.Load(new TabBarPage5(), ct);
+
+		var tb = UIHelper.GetChild<TabBar>(name: "TB");
+		var tab1 = (TabBarItem)tb.Items[0];
+		Assert.AreEqual(TBIOnClickBehaviors.ScrollToTop, GetOnClickBehaviors(tab1), "Tab1 should start with ScrollToTop.");
+
+		// Remove OnClickBehaviors from Tab1 via HR
+		await using (await HotReloadHelper.UpdateSourceFile<TabBarPage5>(
+			originalText: """<utu:TabBarItem Content="Tab One" utu:TabBarItemExtensions.OnClickBehaviors="ScrollToTop" />""",
+			replacementText: """<utu:TabBarItem Content="Tab One" />""",
+			ct))
+		{
+			var tbDuring = UIHelper.GetChild<TabBar>(name: "TB");
+			var tab1During = (TabBarItem)tbDuring.Items[0];
+			Assert.AreEqual(TBIOnClickBehaviors.None, GetOnClickBehaviors(tab1During), "Tab1 should have None after HR remove.");
+		}
+
+		// After dispose, Tab1 should be restored with ScrollToTop
+		var tbAfter1 = UIHelper.GetChild<TabBar>(name: "TB");
+		var tab1After = (TabBarItem)tbAfter1.Items[0];
+		Assert.AreEqual(TBIOnClickBehaviors.ScrollToTop, GetOnClickBehaviors(tab1After), "Tab1 should be restored with ScrollToTop.");
+	}
+
+	/// <summary>
+	/// Verifies that editing OnClickBehaviors on a TabBarItem via XAML Hot Reload
+	/// changes the attached property value correctly.
+	/// Uses TabBarPage5 — Tab1 starts with OnClickBehaviors="ScrollToTop".
+	/// </summary>
+	[TestMethod]
+	public async Task EditOnClickBehaviors_Via_Xaml_HotReload(CancellationToken ct)
+	{
+		await UIHelper.Load(new TabBarPage5(), ct);
+
+		var tb = UIHelper.GetChild<TabBar>(name: "TB");
+		var tab1 = (TabBarItem)tb.Items[0];
+		Assert.AreEqual(TBIOnClickBehaviors.ScrollToTop, GetOnClickBehaviors(tab1), "Tab1 should start with ScrollToTop.");
+
+		// Change ScrollToTop -> BackNavigation via HR
+		await using (await HotReloadHelper.UpdateSourceFile<TabBarPage5>(
+			originalText: "utu:TabBarItemExtensions.OnClickBehaviors=\"ScrollToTop\"",
+			replacementText: "utu:TabBarItemExtensions.OnClickBehaviors=\"BackNavigation\"",
+			ct))
+		{
+			var tbDuring = UIHelper.GetChild<TabBar>(name: "TB");
+			var tab1During = (TabBarItem)tbDuring.Items[0];
+			Assert.AreEqual(TBIOnClickBehaviors.BackNavigation, GetOnClickBehaviors(tab1During), "Tab1 should have BackNavigation after HR edit.");
+		}
+
+		// After dispose, Tab1 should be restored with ScrollToTop
+		var tbAfter1 = UIHelper.GetChild<TabBar>(name: "TB");
+		var tab1After = (TabBarItem)tbAfter1.Items[0];
+		Assert.AreEqual(TBIOnClickBehaviors.ScrollToTop, GetOnClickBehaviors(tab1After), "Tab1 should be restored with ScrollToTop.");
 	}
 }
 #endif
