@@ -381,5 +381,130 @@ public class TabBarHrTest
 		var tab1After = (TabBarItem)tbAfter1.Items[0];
 		Assert.AreEqual(TBIOnClickBehaviors.ScrollToTop, GetOnClickBehaviors(tab1After), "Tab1 should be restored with ScrollToTop.");
 	}
+
+	/// <summary>
+	/// Verifies that removing a specific TabBarItem via XAML Hot Reload is reflected at runtime
+	/// and selection state is adjusted. Simulates responsive hiding of a tab.
+	/// Uses TabBarPage4 (3 tabs).
+	/// </summary>
+	[TestMethod]
+	public async Task RemoveSpecificTabBarItem_Via_Xaml_HotReload(CancellationToken ct)
+	{
+		await UIHelper.Load(new TabBarPage4(), ct);
+
+		var tb = UIHelper.GetChild<TabBar>(name: "TB");
+		Assert.AreEqual(3, tb.Items.Count, "Should start with 3 tabs.");
+
+		// Select the second tab
+		tb.SelectedIndex = 1;
+
+		// Remove the middle tab (Tab Two) via HR — simulates responsive hide
+		var nl = Environment.NewLine;
+		var originalItems = $"<utu:TabBarItem Content=\"Tab One\" />{nl}\t\t\t\t<utu:TabBarItem Content=\"Tab Two\" />{nl}\t\t\t\t<utu:TabBarItem Content=\"Tab Three\" />";
+		var reducedItems = $"<utu:TabBarItem Content=\"Tab One\" />{nl}\t\t\t\t<utu:TabBarItem Content=\"Tab Three\" />";
+
+		await using (await HotReloadHelper.UpdateSourceFile<TabBarPage4>(
+			originalText: originalItems,
+			replacementText: reducedItems,
+			ct))
+		{
+			var tbDuring = UIHelper.GetChild<TabBar>(name: "TB");
+			Assert.AreEqual(2, tbDuring.Items.Count, "Should have 2 tabs after removing Tab Two.");
+			Assert.AreEqual("Tab One", ((TabBarItem)tbDuring.Items[0]).Content as string);
+			Assert.AreEqual("Tab Three", ((TabBarItem)tbDuring.Items[1]).Content as string);
+		}
+
+		// After dispose, UI is restored to 3 tabs
+		var tbAfter = UIHelper.GetChild<TabBar>(name: "TB");
+		Assert.AreEqual(3, tbAfter.Items.Count, "Should be restored to 3 tabs.");
+		Assert.AreEqual("Tab Two", ((TabBarItem)tbAfter.Items[1]).Content as string);
+	}
+
+	/// <summary>
+	/// Verifies that adding multiple TabBarItems at once via XAML Hot Reload works.
+	/// Simulates a responsive breakpoint adding extra navigation tabs.
+	/// Uses TabBarPage4 (3 tabs).
+	/// </summary>
+	[TestMethod]
+	public async Task AddMultipleTabBarItems_Via_Xaml_HotReload(CancellationToken ct)
+	{
+		await UIHelper.Load(new TabBarPage4(), ct);
+
+		var tb = UIHelper.GetChild<TabBar>(name: "TB");
+		Assert.AreEqual(3, tb.Items.Count, "Should start with 3 tabs.");
+
+		// Add two tabs at once via HR — simulates responsive showing of extra tabs
+		await using (await HotReloadHelper.UpdateSourceFile<TabBarPage4>(
+			originalText: """"<utu:TabBarItem Content="Tab Three" />"""",
+			replacementText:
+				""""
+				<utu:TabBarItem Content="Tab Three" />
+				<utu:TabBarItem Content="Tab Four" />
+				<utu:TabBarItem Content="Tab Five" />
+				"""",
+			ct))
+		{
+			var tbDuring = UIHelper.GetChild<TabBar>(name: "TB");
+			Assert.AreEqual(5, tbDuring.Items.Count, "Should have 5 tabs after adding two.");
+			Assert.AreEqual("Tab Four", ((TabBarItem)tbDuring.Items[3]).Content as string);
+			Assert.AreEqual("Tab Five", ((TabBarItem)tbDuring.Items[4]).Content as string);
+		}
+
+		// After dispose, UI is restored to 3 tabs
+		var tbAfter = UIHelper.GetChild<TabBar>(name: "TB");
+		Assert.AreEqual(3, tbAfter.Items.Count, "Should be restored to 3 tabs.");
+	}
+
+	/// <summary>
+	/// Verifies that adding an entire TabBar to a page that starts without one via XAML HR works.
+	/// Simulates responsive late-add of a TabBar at a narrow breakpoint.
+	/// Uses TabBarPage6 (starts with no TabBar).
+	/// </summary>
+	[TestMethod]
+	public async Task LateAddTabBar_Via_Xaml_HotReload(CancellationToken ct)
+	{
+		await UIHelper.Load(new TabBarPage6(), ct);
+
+		// Verify no TabBar initially
+		var tbBefore = UIHelper.GetChildren<TabBar>().FirstOrDefault();
+		Assert.IsNull(tbBefore, "Should start with no TabBar.");
+
+		var placeholder = UIHelper.GetChild<TextBlock>(name: "Placeholder");
+		Assert.AreEqual("No TabBar yet", placeholder.Text);
+
+		// Add a complete TabBar via HR — simulates responsive late-add
+		await using (await HotReloadHelper.UpdateSourceFile<TabBarPage6>(
+			originalText: """<TextBlock x:Name="Placeholder" Text="No TabBar yet" />""",
+			replacementText: """
+				<Grid.RowDefinitions>
+					<RowDefinition Height="Auto" />
+					<RowDefinition Height="Auto" />
+				</Grid.RowDefinitions>
+				<TextBlock x:Name="Placeholder" Text="TabBar added" />
+				<utu:TabBar x:Name="TB" Grid.Row="1" SelectedIndex="0">
+					<utu:TabBar.Items>
+						<utu:TabBarItem Content="Home" />
+						<utu:TabBarItem Content="Settings" />
+					</utu:TabBar.Items>
+				</utu:TabBar>
+			""",
+			ct))
+		{
+			var tbDuring = UIHelper.GetChild<TabBar>(name: "TB");
+			Assert.IsNotNull(tbDuring, "TabBar should exist after HR late-add.");
+			Assert.AreEqual(2, tbDuring.Items.Count, "Should have 2 tabs.");
+			Assert.AreEqual("Home", ((TabBarItem)tbDuring.Items[0]).Content as string);
+			Assert.AreEqual("Settings", ((TabBarItem)tbDuring.Items[1]).Content as string);
+
+			var placeholderDuring = UIHelper.GetChild<TextBlock>(name: "Placeholder");
+			Assert.AreEqual("TabBar added", placeholderDuring.Text);
+		}
+
+		// After dispose, UI is restored — no TabBar, placeholder text reset
+		var tbAfterRestore = UIHelper.GetChildren<TabBar>().FirstOrDefault();
+		Assert.IsNull(tbAfterRestore, "TabBar should be removed after dispose.");
+		var placeholderAfter = UIHelper.GetChild<TextBlock>(name: "Placeholder");
+		Assert.AreEqual("No TabBar yet", placeholderAfter.Text);
+	}
 }
 #endif
